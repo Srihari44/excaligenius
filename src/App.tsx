@@ -1,14 +1,16 @@
+import { useState } from "react";
 import "./App.css";
-import ExcaliGeniusApp from "./components/main/excaligenius-app";
-import { Toaster } from "@/components/ui/sonner";
+import ApiKeySetup from "./components/main/api-key-setup";
+import AppContainer from "./components/main/app-container";
 
 function App() {
-  return (
-    <>
-      <ExcaliGeniusApp />
-      <Toaster />
-    </>
-  );
+  const [apiKey, setApiKey] = useState<string | null>(null);
+
+  if (!apiKey) {
+    return <ApiKeySetup onApiKeySubmit={setApiKey} />;
+  }
+
+  return <AppContainer apiKey={apiKey} onLogout={() => setApiKey(null)} />;
 }
 
 export default App;
