@@ -71,10 +71,9 @@ export default function ApiKeySetup({ onApiKeySubmit }: ApiKeySetupProps) {
               <label className="text-sm font-medium text-slate-200">Gemini API Key</label>
               <Input
                 type="password"
-                placeholder="sk-..."
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500"
+                className="bg-slate-700/50 border-slate-600 text-white mt-1"
                 disabled={loading}
               />
               <p className="text-xs text-slate-400">Your API key is stored securely and only used for this session.</p>

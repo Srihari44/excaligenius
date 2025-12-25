@@ -102,44 +102,45 @@ For regular responses, just provide text feedback.`;
 
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          const data = line.slice(6);
-          if (data === "[DONE]") continue;
-
+      if (done) {
+        // Process any remaining data in buffer
+        if (buffer.trim()) {
           try {
-            const parsed = JSON.parse(data);
-            const chunk = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (chunk) {
-              console.log("[v0] Received chunk:", chunk.substring(0, 50));
-              yield chunk;
+            const jsonObjects = extractJsonObjects(buffer);
+            for (const parsed of jsonObjects) {
+              const chunk = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (chunk) {
+                console.log("[v0] Received chunk:", chunk);
+                yield chunk;
+              }
             }
           } catch (e) {
-            console.error("[v0] Failed to parse chunk:", e);
+            console.error("[v0] Failed to parse final buffer:", e);
           }
         }
+        break;
       }
-    }
 
-    // Process any remaining buffer
-    if (buffer.trim().startsWith("data: ")) {
-      const data = buffer.slice(6);
-      if (data !== "[DONE]") {
-        try {
-          const parsed = JSON.parse(data);
+      buffer += decoder.decode(value, { stream: true });
+
+      // Try to extract and parse complete JSON objects from buffer
+      const jsonObjects = extractJsonObjects(buffer);
+
+      if (jsonObjects.length > 0) {
+        for (const parsed of jsonObjects) {
           const chunk = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
           if (chunk) {
-            console.log("[v0] Final chunk:", chunk.substring(0, 50));
+            console.log("[v0] Received chunk:", chunk);
             yield chunk;
           }
-        } catch (e) {
-          console.error("[v0] Failed to parse final chunk:", e);
+        }
+
+        // Clear the buffer after successful parsing
+        // Keep any incomplete JSON for next iteration
+        const lastClosingBrace = buffer.lastIndexOf("}");
+        if (lastClosingBrace !== -1) {
+          buffer = buffer.slice(lastClosingBrace + 1);
         }
       }
     }
@@ -147,6 +148,79 @@ For regular responses, just provide text feedback.`;
     console.error("[v0] Stream error:", error);
     throw error;
   }
+}
+
+// Helper function to extract JSON objects from a string
+function extractJsonObjects(str: string): any[] {
+  const jsonObjects: any[] = [];
+
+  // Remove array brackets and clean up
+  let cleaned = str.trim();
+  if (cleaned.startsWith("[")) {
+    cleaned = cleaned.slice(1);
+  }
+  if (cleaned.endsWith("]")) {
+    cleaned = cleaned.slice(0, -1);
+  }
+
+  // Remove leading commas and whitespace
+  cleaned = cleaned.replace(/^,\s*/, "").trim();
+
+  let depth = 0;
+  let currentObject = "";
+  let inString = false;
+  let escapeNext = false;
+
+  for (let i = 0; i < cleaned.length; i++) {
+    const char = cleaned[i];
+
+    // Handle string escaping
+    if (escapeNext) {
+      currentObject += char;
+      escapeNext = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      currentObject += char;
+      escapeNext = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      currentObject += char;
+      continue;
+    }
+
+    // Only track braces outside of strings
+    if (!inString) {
+      if (char === "{") {
+        depth++;
+      } else if (char === "}") {
+        depth--;
+      }
+    }
+
+    currentObject += char;
+
+    // When depth returns to 0, we have a complete object
+    if (!inString && depth === 0 && currentObject.trim()) {
+      try {
+        const trimmed = currentObject.trim();
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+          const parsed = JSON.parse(trimmed);
+          jsonObjects.push(parsed);
+        }
+        currentObject = "";
+      } catch {
+        // If parsing fails, keep accumulating
+        console.warn("[v0] Failed to parse object, continuing...");
+      }
+    }
+  }
+
+  return jsonObjects;
 }
 
 export function tryParseModifications(text: string): any | null {

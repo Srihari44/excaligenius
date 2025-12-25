@@ -313,7 +313,7 @@ export default function Editor({
         </div>
 
         {/* Messages */}
-        <ScrollArea className="flex-1 p-4">
+        <ScrollArea className="h-[calc(100%-210px)] p-4">
           <div className="space-y-2">
             {messages.map((msg) => (
               <ChatMessage key={msg.id} message={msg} />
