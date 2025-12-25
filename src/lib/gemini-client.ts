@@ -1,12 +1,17 @@
-import { GoogleGenerativeAI, type Content } from "@google/generative-ai";
+import {
+  GoogleGenerativeAI,
+  type Content,
+  SchemaType,
+} from "@google/generative-ai";
 import type { GeminiMessage } from "./types";
 
 export async function* streamGeminiResponse(
   prompt: string,
-  diagramData: string,
   projectDescription: string,
   conversationHistory: GeminiMessage[],
   apiKey: string,
+  getDiagramData: () => Promise<any>,
+  applyModifications: (modifications: any) => Promise<void>,
   isFollowUp = false
 ): AsyncGenerator<string, void, unknown> {
   const systemPrompt = `You are an expert AI diagram reviewer and architect. You help users design, review, and improve their diagrams and system architectures.
@@ -14,8 +19,15 @@ export async function* streamGeminiResponse(
 Current Project:
 ${projectDescription}
 
-Current Diagram Data:
-${diagramData}
+You have access to two tools:
+1. "get_excalidraw_data": Retrieves the current Excalidraw diagram data (elements and app state).
+   - ALWAYS call this tool first if you need to see the diagram to provide feedback or modifications.
+   - If the user's request doesn't require looking at the diagram, you can skip calling it.
+
+2. "apply_excalidraw_modifications": Applies changes to the Excalidraw diagram.
+   - Use this tool IMMEDIATELY when you want to modify the diagram (e.g., "Add a database node", "Change color to blue").
+   - Do NOT ask for confirmation before calling this tool if the user explicitly requested a change.
+   - Pass the full 'elements' array and 'appState' object as needed.
 
 When reviewing diagrams, provide:
 1. Clear feedback on the design
@@ -23,24 +35,53 @@ When reviewing diagrams, provide:
 3. Potential issues or edge cases
 4. Best practices recommendations
 
-If the user asks you to modify the diagram, respond with a JSON object with no comments and formatting in this structure:
-\`\`\`json
-{
-  "feedback": "Your text feedback here...",
-  "modifications": {
-    "elements": [...excalidraw elements...],
-    "appState": {...}
-  }
-}
-\`\`\`
-
 For regular responses, just provide text feedback.`;
+
+  const getExcalidrawConfig = {
+    name: "get_excalidraw_data",
+    description:
+      "Retrieves the current Excalidraw diagram data elements and app state",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {},
+    },
+  };
+
+  const applyExcalidrawModificationsConfig = {
+    name: "apply_excalidraw_modifications",
+    description:
+      "Applies modifications to the Excalidraw diagram (elements and app state).",
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        elements: {
+          type: SchemaType.ARRAY,
+          description: "List of Excalidraw elements to update or add.",
+          items: { type: SchemaType.OBJECT, properties: {} },
+        },
+        appState: {
+          type: SchemaType.OBJECT,
+          description: "App state properties to update",
+          properties: {},
+        },
+      },
+      required: ["elements"],
+    },
+  };
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.5-flash", // Assuming 2.0-flash is what was intended or upgrading to it
       systemInstruction: systemPrompt,
+      tools: [
+        {
+          functionDeclarations: [
+            getExcalidrawConfig,
+            applyExcalidrawModificationsConfig,
+          ],
+        },
+      ],
     });
 
     // Convert history to SDK format
@@ -56,32 +97,59 @@ For regular responses, just provide text feedback.`;
       },
     });
 
-    const messageContent = prompt;
-
     console.log("[v0] Sending message to Gemini...");
-    const result = await chat.sendMessageStream(messageContent);
+    let result = await chat.sendMessageStream(prompt);
 
-    for await (const chunk of result.stream) {
-      const chunkText = chunk.text();
-      // console.log("[v0] Received chunk:", chunkText);
-      yield chunkText;
+    // Process the stream and handle tool calls loop
+    while (true) {
+      let functionCallFound: any = null;
+
+      for await (const chunk of result.stream) {
+        const calls = chunk.functionCalls();
+        if (calls && calls.length > 0) {
+          functionCallFound = calls[0];
+          break;
+        }
+
+        const text = chunk.text();
+        if (text) yield text;
+      }
+
+      if (functionCallFound) {
+        console.log(`[v0] Tool called: ${functionCallFound.name}`);
+
+        if (functionCallFound.name === "get_excalidraw_data") {
+          const diagramData = await getDiagramData();
+          const functionResponse = {
+            functionResponse: {
+              name: "get_excalidraw_data",
+              response: { data: diagramData },
+            },
+          };
+          result = await chat.sendMessageStream([functionResponse]);
+        } else if (
+          functionCallFound.name === "apply_excalidraw_modifications"
+        ) {
+          const args = functionCallFound.args;
+          await applyModifications(args);
+          const functionResponse = {
+            functionResponse: {
+              name: "apply_excalidraw_modifications",
+              response: { success: true },
+            },
+          };
+          result = await chat.sendMessageStream([functionResponse]);
+        } else {
+          console.warn("[v0] Unknown tool called");
+          break;
+        }
+      } else {
+        // No function call found in the entire stream, we are done
+        break;
+      }
     }
   } catch (error) {
     console.error("[v0] Stream error:", error);
     throw error;
   }
-}
-
-// Helper function to extract JSON objects from a string
-// Note: SDK handles stream parsing, but we still use tryParseModifications for the final result
-export function tryParseModifications(text: string): any | null {
-  try {
-    const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/);
-    if (jsonMatch && jsonMatch[1]) {
-      return JSON.parse(jsonMatch[1]);
-    }
-  } catch (e) {
-    console.error("[v0] Failed to parse modifications:", e);
-  }
-  return null;
 }

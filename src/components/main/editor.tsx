@@ -1,14 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Menu, LogOut, Zap, Check, X } from "lucide-react";
+import { Send, Menu, LogOut, Zap } from "lucide-react";
 import ExcalidrawWrapper from "@/components/main/excalidraw-wrapper";
 import ChatMessage from "@/components/main/chat-message";
 import type { ChatMessageType, GeminiMessage } from "@/lib/types";
-import {
-  streamGeminiResponse,
-  tryParseModifications,
-} from "@/lib/gemini-client";
+import { streamGeminiResponse } from "@/lib/gemini-client";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
 interface EditorProps {
@@ -28,8 +25,7 @@ export default function Editor({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [diagramData, setDiagramData] = useState<string>("");
   const [hasEvaluated, setHasEvaluated] = useState(false);
-  const [diagramModifications, setDiagramModifications] = useState<any>(null);
-  const [showModificationPreview, setShowModificationPreview] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [excalidrawAPI, setExcalidrawAPI] =
     useState<ExcalidrawImperativeAPI | null>(null);
@@ -62,70 +58,56 @@ export default function Editor({
       }));
   }, [messages]);
 
-  const applyModifications = useCallback(async () => {
-    if (!diagramModifications || !excalidrawAPI) {
-      console.error("[v0] No modifications or excalidraw ref");
-      return;
-    }
-
-    try {
-      console.log("[v0] Applying modifications to diagram");
-
+  const handleApplyModifications = useCallback(
+    async (modifications: any) => {
       if (!excalidrawAPI) {
         console.error("[v0] Excalidraw API not available");
-        setShowModificationPreview(false);
-
-        const msg: ChatMessageType = {
-          id: Date.now().toString(),
-          role: "assistant",
-          content:
-            "I can suggest changes, but please manually apply them or ask me to describe them in detail.",
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, msg]);
         return;
       }
+      console.log("[v0] Applying tool modifications to diagram", modifications);
 
-      // Update elements
-      if (diagramModifications.elements) {
-        excalidrawAPI.updateScene({ elements: diagramModifications.elements });
+      try {
+        // Update elements
+        if (modifications.elements) {
+          excalidrawAPI.updateScene({
+            elements: modifications.elements,
+          });
+        }
+
+        // Update app state
+        if (modifications.appState) {
+          excalidrawAPI.updateScene({
+            appState: {
+              zoom: modifications.appState.zoom || { value: 1 },
+              scrollX: modifications.appState.scrollX || 0,
+              scrollY: modifications.appState.scrollY || 0,
+            },
+          });
+        }
+      } catch (error) {
+        console.error("[v0] Error applying tool modifications:", error);
       }
+    },
+    [excalidrawAPI]
+  );
 
-      // Update app state
-      if (diagramModifications.appState) {
-        excalidrawAPI.updateScene({
-          appState: {
-            zoom: diagramModifications.appState.zoom || { value: 1 },
-            scrollX: diagramModifications.appState.scrollX || 0,
-            scrollY: diagramModifications.appState.scrollY || 0,
-          },
-        });
-      }
-
-      setShowModificationPreview(false);
-      setDiagramModifications(null);
-
-      const successMsg: ChatMessageType = {
-        id: Date.now().toString(),
-        role: "assistant",
-        content:
-          "I've applied the suggested modifications to your diagram! Review them and let me know if you'd like any adjustments.",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, successMsg]);
-    } catch (error) {
-      console.error("[v0] Error applying modifications:", error);
-
-      const errorMsg: ChatMessageType = {
-        id: Date.now().toString(),
-        role: "assistant",
-        content:
-          "I encountered an error applying the modifications. The changes couldn't be automatically applied. Let me know if you'd like me to describe the changes instead.",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMsg]);
+  const getLatestDiagramData = useCallback(async () => {
+    if (!excalidrawAPI) {
+      return { elements: [], appState: {} };
     }
-  }, [diagramModifications]);
+    const elements = excalidrawAPI.getSceneElements();
+    const appState = excalidrawAPI.getAppState();
+    return {
+      elements,
+      appState: {
+        theme: appState.theme,
+        zoom: appState.zoom,
+        scrollX: appState.scrollX,
+        scrollY: appState.scrollY,
+        viewBackgroundColor: appState.viewBackgroundColor,
+      },
+    };
+  }, [excalidrawAPI]);
 
   const handleEvaluate = async () => {
     if (!diagramData) {
@@ -167,10 +149,11 @@ export default function Editor({
 
       const generator = streamGeminiResponse(
         "Please evaluate my diagram",
-        diagramData,
         projectDescription,
         getConversationHistory(),
         apiKey,
+        getLatestDiagramData,
+        handleApplyModifications,
         false
       );
 
@@ -184,13 +167,6 @@ export default function Editor({
               : msg
           )
         );
-      }
-
-      const modifications = tryParseModifications(fullContent);
-      if (modifications?.modifications) {
-        console.log("[v0] Diagram modifications detected");
-        setDiagramModifications(modifications.modifications);
-        setShowModificationPreview(true);
       }
     } catch (error) {
       console.error("[v0] Evaluation error:", error);
@@ -239,10 +215,11 @@ export default function Editor({
 
       const generator = streamGeminiResponse(
         input,
-        diagramData,
         projectDescription,
         getConversationHistory(),
         apiKey,
+        getLatestDiagramData,
+        handleApplyModifications,
         true
       );
 
@@ -256,13 +233,6 @@ export default function Editor({
               : msg
           )
         );
-      }
-
-      const modifications = tryParseModifications(fullContent);
-      if (modifications?.modifications) {
-        console.log("[v0] Diagram modifications detected in follow-up");
-        setDiagramModifications(modifications.modifications);
-        setShowModificationPreview(true);
       }
     } catch (error) {
       console.error("[v0] Chat error:", error);
@@ -313,7 +283,7 @@ export default function Editor({
         </div>
 
         {/* Messages */}
-        <ScrollArea className="h-[calc(100%-210px)] p-4">
+        <ScrollArea className="h-[calc(100%-210px)] px-4 py-2 w-full">
           <div className="space-y-2">
             {messages.map((msg) => (
               <ChatMessage key={msg.id} message={msg} />
@@ -372,27 +342,6 @@ export default function Editor({
             <h1 className="text-xl font-bold text-white">Canvas</h1>
           </div>
           <div className="flex gap-2">
-            {showModificationPreview && diagramModifications && (
-              <>
-                <Button
-                  onClick={applyModifications}
-                  className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
-                >
-                  <Check size={16} />
-                  Apply Suggestions
-                </Button>
-                <Button
-                  onClick={() => {
-                    setShowModificationPreview(false);
-                    setDiagramModifications(null);
-                  }}
-                  variant="outline"
-                  className="text-slate-300 border-slate-600 hover:bg-slate-700"
-                >
-                  <X size={16} />
-                </Button>
-              </>
-            )}
             <Button
               onClick={handleEvaluate}
               disabled={loading || !diagramData}

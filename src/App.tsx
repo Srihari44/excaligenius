@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense, useEffect } from "react";
+import { useState, lazy, Suspense } from "react";
 import "./App.css";
 import ApiKeySetup from "./components/main/api-key-setup";
 import { Loader2 } from "lucide-react";
