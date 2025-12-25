@@ -292,7 +292,7 @@ export default function Editor({
       <div
         className={`${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } transition-transform duration-300 fixed lg:static left-0 top-0 h-screen w-80 bg-slate-900 border-r border-slate-700 flex flex-col z-30`}
+        } transition-transform duration-300 fixed lg:static left-0 top-0 h-screen w-120 bg-slate-900 border-r border-slate-700 flex flex-col z-30`}
       >
         <div className="p-4 border-b border-slate-700 space-y-3">
           <div className="flex items-center justify-between">

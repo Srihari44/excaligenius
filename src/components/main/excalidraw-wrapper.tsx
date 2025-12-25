@@ -1,7 +1,15 @@
-import { Excalidraw } from "@excalidraw/excalidraw";
-import "@excalidraw/excalidraw/index.css";
+import { useCallback, useRef, lazy, Suspense } from "react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { useTheme } from "next-themes";
+import { Loader2 } from "lucide-react";
+
+// Lazy load Excalidraw
+const Excalidraw = lazy(async () => {
+  await import("@excalidraw/excalidraw/index.css");
+  return import("@excalidraw/excalidraw").then((module) => ({
+    default: module.Excalidraw,
+  }));
+});
 
 interface ExcalidrawWrapperProps {
   setExcalidrawAPI: (data: ExcalidrawImperativeAPI) => void;
@@ -13,33 +21,58 @@ const ExcalidrawWrapper = ({
   setExcalidrawAPI,
 }: ExcalidrawWrapperProps) => {
   const { resolvedTheme } = useTheme();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounced change handler
+  const handleOnChange = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (elements: readonly any[], appState: any) => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+
+      timeoutRef.current = setTimeout(() => {
+        const diagramData = JSON.stringify({
+          elements,
+          appState: {
+            theme: appState.theme,
+            zoom: appState.zoom,
+            scrollX: appState.scrollX,
+            scrollY: appState.scrollY,
+          },
+        });
+        onDiagramChange(diagramData);
+      }, 500); // 500ms debounce
+    },
+    [onDiagramChange]
+  );
 
   return (
-    <div className="w-full h-full bg-white">
-      <Excalidraw
-        excalidrawAPI={(api) => setExcalidrawAPI(api)}
-        onChange={(elements, appState) => {
-          const diagramData = JSON.stringify({
-            elements,
+    <div className="w-full h-full bg-white relative">
+      <Suspense
+        fallback={
+          <div className="flex h-full w-full items-center justify-center bg-slate-50 text-slate-400">
+            <div className="flex flex-col items-center gap-2">
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <p>Loading Canvas...</p>
+            </div>
+          </div>
+        }
+      >
+        <Excalidraw
+          excalidrawAPI={(api) => setExcalidrawAPI(api)}
+          onChange={handleOnChange}
+          initialData={{
+            elements: [],
             appState: {
-              theme: appState.theme,
-              zoom: appState.zoom,
-              scrollX: appState.scrollX,
-              scrollY: appState.scrollY,
+              theme: resolvedTheme === "dark" ? "dark" : "light",
             },
-          });
-          onDiagramChange(diagramData);
-        }}
-        initialData={{
-          elements: [],
-          appState: {
-            theme: resolvedTheme === "dark" ? "dark" : "light",
-          },
-        }}
-        UIOptions={{
-          dockedSidebarBreakpoint: 768,
-        }}
-      />
+          }}
+          UIOptions={{
+            dockedSidebarBreakpoint: 768,
+          }}
+        />
+      </Suspense>
     </div>
   );
 };

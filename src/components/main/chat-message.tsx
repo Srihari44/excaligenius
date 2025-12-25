@@ -1,5 +1,5 @@
 import { Copy, Check } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, memo } from "react";
 import Markdown from "markdown-to-jsx/react";
 
 import type { ChatMessageType } from "@/lib/types";
@@ -8,7 +8,7 @@ interface ChatMessageProps {
   message: ChatMessageType;
 }
 
-export default function ChatMessage({ message }: ChatMessageProps) {
+function ChatMessage({ message }: ChatMessageProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -70,3 +70,5 @@ export default function ChatMessage({ message }: ChatMessageProps) {
     </div>
   );
 }
+
+export default memo(ChatMessage);
