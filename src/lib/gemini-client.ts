@@ -1,17 +1,35 @@
 import {
   GoogleGenerativeAI,
-  type Content,
   SchemaType,
+  type Content,
+  type FunctionCall,
 } from "@google/generative-ai";
-import type { GeminiMessage } from "./types";
+import type { AppState } from "@excalidraw/excalidraw/types";
+import type {
+  ExcalidrawElement,
+  NonDeletedExcalidrawElement,
+  Ordered,
+} from "@excalidraw/excalidraw/element/types";
+
+export async function validateGeminiKey(apiKey: string) {
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  return model.countTokens("Test");
+}
 
 export async function* streamGeminiResponse(
   prompt: string,
   projectDescription: string,
-  conversationHistory: GeminiMessage[],
+  conversationHistory: Content[],
   apiKey: string,
-  getDiagramData: () => Promise<any>,
-  applyModifications: (modifications: any) => Promise<void>,
+  getDiagramData: () => Promise<{
+    elements: Readonly<Ordered<NonDeletedExcalidrawElement>[]>;
+    appState: Readonly<Partial<AppState>>;
+  } | null>,
+  applyModifications: (modifications: {
+    elements: ExcalidrawElement[];
+    appState: AppState;
+  }) => Promise<void>,
   isFollowUp = false
 ): AsyncGenerator<string, void, unknown> {
   const systemPrompt = `You are an expert AI diagram reviewer and architect. You help users design, review, and improve their diagrams and system architectures.
@@ -72,7 +90,7 @@ For regular responses, just provide text feedback.`;
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash", // Assuming 2.0-flash is what was intended or upgrading to it
+      model: "gemini-2.5-flash",
       systemInstruction: systemPrompt,
       tools: [
         {
@@ -85,9 +103,9 @@ For regular responses, just provide text feedback.`;
     });
 
     // Convert history to SDK format
-    const history: Content[] = conversationHistory.map((msg) => ({
+    const history = conversationHistory.map((msg) => ({
       role: msg.role,
-      parts: msg.parts.map((p) => ({ text: p.text })),
+      parts: msg.parts.map((p) => ({ text: p.text ?? "" })),
     }));
 
     const chat = model.startChat({
@@ -97,12 +115,12 @@ For regular responses, just provide text feedback.`;
       },
     });
 
-    console.log("[v0] Sending message to Gemini...");
+    console.log("[excaligenius] Sending message to Gemini...");
     let result = await chat.sendMessageStream(prompt);
 
     // Process the stream and handle tool calls loop
     while (true) {
-      let functionCallFound: any = null;
+      let functionCallFound: FunctionCall | null = null;
 
       for await (const chunk of result.stream) {
         const calls = chunk.functionCalls();
@@ -116,7 +134,7 @@ For regular responses, just provide text feedback.`;
       }
 
       if (functionCallFound) {
-        console.log(`[v0] Tool called: ${functionCallFound.name}`);
+        console.log(`[excaligenius] Tool called: ${functionCallFound.name}`);
 
         if (functionCallFound.name === "get_excalidraw_data") {
           const diagramData = await getDiagramData();
@@ -130,7 +148,10 @@ For regular responses, just provide text feedback.`;
         } else if (
           functionCallFound.name === "apply_excalidraw_modifications"
         ) {
-          const args = functionCallFound.args;
+          const args = functionCallFound.args as {
+            elements: ExcalidrawElement[];
+            appState: AppState;
+          };
           await applyModifications(args);
           const functionResponse = {
             functionResponse: {
@@ -140,7 +161,7 @@ For regular responses, just provide text feedback.`;
           };
           result = await chat.sendMessageStream([functionResponse]);
         } else {
-          console.warn("[v0] Unknown tool called");
+          console.warn("[excaligenius] Unknown tool called");
           break;
         }
       } else {
@@ -149,7 +170,7 @@ For regular responses, just provide text feedback.`;
       }
     }
   } catch (error) {
-    console.error("[v0] Stream error:", error);
+    console.error("[excaligenius] Stream error:", error);
     throw error;
   }
 }

@@ -1,7 +1,12 @@
 import { useCallback, useRef, lazy, Suspense } from "react";
-import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { useTheme } from "next-themes";
+
 import { Loader2 } from "lucide-react";
+
+import type {
+  AppState,
+  ExcalidrawImperativeAPI,
+} from "@excalidraw/excalidraw/types";
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 
 // Lazy load Excalidraw
 const Excalidraw = lazy(async () => {
@@ -20,13 +25,10 @@ const ExcalidrawWrapper = ({
   onDiagramChange,
   setExcalidrawAPI,
 }: ExcalidrawWrapperProps) => {
-  const { resolvedTheme } = useTheme();
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Debounced change handler
   const handleOnChange = useCallback(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (elements: readonly any[], appState: any) => {
+    (elements: readonly ExcalidrawElement[], appState: AppState) => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
@@ -42,7 +44,7 @@ const ExcalidrawWrapper = ({
           },
         });
         onDiagramChange(diagramData);
-      }, 500); // 500ms debounce
+      }, 500);
     },
     [onDiagramChange]
   );
@@ -65,7 +67,7 @@ const ExcalidrawWrapper = ({
           initialData={{
             elements: [],
             appState: {
-              theme: resolvedTheme === "dark" ? "dark" : "light",
+              theme: "dark",
             },
           }}
           UIOptions={{

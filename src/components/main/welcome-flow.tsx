@@ -1,36 +1,42 @@
-"use client"
-
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 interface WelcomeFlowProps {
-  onProjectSetup: (description: string) => void
+  onProjectSetup: (description: string) => void;
 }
 
 export default function WelcomeFlow({ onProjectSetup }: WelcomeFlowProps) {
-  const [step, setStep] = useState<"welcome" | "describe">("welcome")
-  const [description, setDescription] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [step, setStep] = useState<"welcome" | "describe">("welcome");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleStartProject = () => {
-    setStep("describe")
-  }
+    setStep("describe");
+  };
 
   const handleProjectDescribe = async () => {
-    if (!description.trim()) return
+    if (!description.trim()) return;
 
-    setLoading(true)
-    onProjectSetup(description)
-  }
+    setLoading(true);
+    onProjectSetup(description);
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-linear-to-br from-blue-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
       {step === "welcome" ? (
         <Card className="w-full max-w-2xl shadow-2xl border-blue-500/20 bg-slate-800/80 backdrop-blur">
           <CardHeader className="space-y-4 text-center">
-            <CardTitle className="text-4xl text-white font-bold">Welcome to ExcaliDraw AI</CardTitle>
+            <CardTitle className="text-4xl text-white font-bold">
+              Welcome to ExcaliDraw AI
+            </CardTitle>
             <CardDescription className="text-lg text-slate-300">
               Collaborate with AI to design, review, and refine your diagrams
             </CardDescription>
@@ -38,32 +44,42 @@ export default function WelcomeFlow({ onProjectSetup }: WelcomeFlowProps) {
           <CardContent className="space-y-6">
             <div className="space-y-4 text-slate-300">
               <div className="flex gap-4">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
+                <div className="shrink-0 w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
                   1
                 </div>
                 <div>
-                  <h3 className="font-semibold text-white">Describe Your Vision</h3>
-                  <p className="text-sm text-slate-400">Tell us what you want to build or design</p>
+                  <h3 className="font-semibold text-white">
+                    Describe Your Vision
+                  </h3>
+                  <p className="text-sm text-slate-400">
+                    Tell us what you want to build or design
+                  </p>
                 </div>
               </div>
 
               <div className="flex gap-4">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
+                <div className="shrink-0 w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
                   2
                 </div>
                 <div>
-                  <h3 className="font-semibold text-white">Create in Excalidraw</h3>
-                  <p className="text-sm text-slate-400">Draw and design your diagram freely</p>
+                  <h3 className="font-semibold text-white">
+                    Create in Excalidraw
+                  </h3>
+                  <p className="text-sm text-slate-400">
+                    Draw and design your diagram freely
+                  </p>
                 </div>
               </div>
 
               <div className="flex gap-4">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
+                <div className="shrink-0 w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
                   3
                 </div>
                 <div>
                   <h3 className="font-semibold text-white">Get AI Feedback</h3>
-                  <p className="text-sm text-slate-400">Evaluate with Gemini and iterate together</p>
+                  <p className="text-sm text-slate-400">
+                    Evaluate with Gemini and iterate together
+                  </p>
                 </div>
               </div>
             </div>
@@ -79,9 +95,12 @@ export default function WelcomeFlow({ onProjectSetup }: WelcomeFlowProps) {
       ) : (
         <Card className="w-full max-w-2xl shadow-2xl border-blue-500/20 bg-slate-800/80 backdrop-blur">
           <CardHeader className="space-y-2">
-            <CardTitle className="text-2xl text-white font-bold">What would you like to build?</CardTitle>
+            <CardTitle className="text-2xl text-white font-bold">
+              What would you like to build?
+            </CardTitle>
             <CardDescription className="text-slate-300">
-              Describe your diagram, design, or architecture. Be as detailed as you'd like.
+              Describe your diagram, design, or architecture. Be as detailed as
+              you'd like.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -96,7 +115,12 @@ export default function WelcomeFlow({ onProjectSetup }: WelcomeFlowProps) {
             </div>
 
             <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setStep("welcome")} className="flex-1" disabled={loading}>
+              <Button
+                variant="outline"
+                onClick={() => setStep("welcome")}
+                className="flex-1"
+                disabled={loading}
+              >
                 Back
               </Button>
               <Button
@@ -111,5 +135,5 @@ export default function WelcomeFlow({ onProjectSetup }: WelcomeFlowProps) {
         </Card>
       )}
     </div>
-  )
+  );
 }

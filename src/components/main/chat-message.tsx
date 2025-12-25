@@ -1,6 +1,7 @@
-import { Copy, Check } from "lucide-react";
 import { useState, useMemo, memo } from "react";
 import Markdown from "markdown-to-jsx/react";
+
+import { Copy, Check } from "lucide-react";
 
 import type { ChatMessageType } from "@/lib/types";
 
@@ -34,7 +35,7 @@ function ChatMessage({ message }: ChatMessageProps) {
       }`}
     >
       {message.role === "assistant" && (
-        <div className="w-6 h-6 rounded-full bg-blue-600 flex-shrink-0 flex items-center justify-center text-xs text-white font-bold">
+        <div className="w-6 h-6 rounded-full bg-blue-600 shrink-0 flex items-center justify-center text-xs text-white font-bold">
           AI
         </div>
       )}
@@ -45,7 +46,7 @@ function ChatMessage({ message }: ChatMessageProps) {
             : "bg-slate-700 text-slate-100 rounded-bl-none"
         }`}
       >
-        <div className="text-sm prose prose-invert max-w-none break-words leading-relaxed">
+        <div className="text-sm prose prose-invert max-w-none wrap-break-word leading-relaxed">
           <Markdown>{message.content}</Markdown>
         </div>
         {message.role === "assistant" && !hasCode && !hasJson && (
@@ -63,7 +64,7 @@ function ChatMessage({ message }: ChatMessageProps) {
         )}
       </div>
       {message.role === "user" && (
-        <div className="w-6 h-6 rounded-full bg-slate-600 flex-shrink-0 flex items-center justify-center text-xs text-white font-bold">
+        <div className="w-6 h-6 rounded-full bg-slate-600 shrink-0 flex items-center justify-center text-xs text-white font-bold">
           U
         </div>
       )}

@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { validateGeminiKey } from "@/lib/gemini-client";
 
 interface ApiKeySetupProps {
   onApiKeySubmit: (key: string) => void;
@@ -29,45 +30,25 @@ export default function ApiKeySetup({ onApiKeySubmit }: ApiKeySetupProps) {
       return;
     }
 
-    // Validate API key by attempting to initialize the model and simple generation
     try {
       const trimmedKey = apiKey.trim();
-      console.log("[v0] Input API key length:", trimmedKey.length);
-      console.log(
-        "[v0] Attempting API validation with key:",
-        trimmedKey.substring(0, 10) + "..."
-      );
-
-      const { GoogleGenerativeAI } = await import("@google/generative-ai");
-      const genAI = new GoogleGenerativeAI(trimmedKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-      // We perform a minimal token count request to verify the key works
-      // This is lighter/faster than generating content
-      await model.countTokens("Test");
-
-      console.log("[v0] API validation successful, storing key");
+      await validateGeminiKey(trimmedKey);
       localStorage.setItem("gemini_api_key", trimmedKey);
-      console.log(
-        "[v0] Calling onApiKeySubmit with key:",
-        trimmedKey.substring(0, 10) + "..."
-      );
       onApiKeySubmit(trimmedKey);
     } catch (err) {
       const errorMessage =
         err instanceof Error
           ? err.message
           : "Invalid API key. Please check and try again.";
-      console.log("[v0] Setting error state to:", errorMessage);
       setError(errorMessage);
-      console.error("[v0] API validation error:", err);
+      console.error("[excaligenius] API validation error:", err);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-linear-to-br from-blue-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
       <Card className="w-full max-w-md shadow-2xl border-blue-500/20 bg-slate-800/80 backdrop-blur">
         <CardHeader className="space-y-2">
           <CardTitle className="text-3xl text-white font-bold">
