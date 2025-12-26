@@ -51,12 +51,36 @@ export function useGeminiChat({
   }, [projectDescription]);
 
   const getConversationHistory = useCallback((): Content[] => {
-    return messages
-      .filter((m) => m.id !== "initial")
-      .map((msg) => ({
-        role: msg.role === "user" ? "user" : "model",
-        parts: [{ text: msg.content }],
-      }));
+    // Find the last message with raw_history
+    let lastHistoryMsgIndex = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].raw_history) {
+        lastHistoryMsgIndex = i;
+        break;
+      }
+    }
+
+    let baseHistory: Content[] = [];
+    let startIndex = 0;
+
+    if (lastHistoryMsgIndex !== -1) {
+      baseHistory = messages[lastHistoryMsgIndex].raw_history!;
+      startIndex = lastHistoryMsgIndex + 1;
+    }
+
+    // Append subsequent messages
+    const subsequentMessages = messages
+      .slice(startIndex)
+      .filter((m) => m.id !== "initial");
+    const newContent = subsequentMessages.map(
+      (msg) =>
+        ({
+          role: msg.role === "user" ? "user" : "model",
+          parts: [{ text: msg.content }],
+        } as Content)
+    );
+
+    return [...baseHistory, ...newContent];
   }, [messages]);
 
   const handleStreamResponse = async (prompt: string, isFollowUp: boolean) => {
@@ -73,7 +97,7 @@ export function useGeminiChat({
 
       const placeholderMessage: ChatMessageType = {
         id: assistantMessageId,
-        role: "assistant",
+        role: "assistant", // "model" in API
         content: "",
         timestamp: new Date(),
       };
@@ -89,15 +113,28 @@ export function useGeminiChat({
       });
 
       for await (const chunk of generator) {
-        fullContent += chunk;
-
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === assistantMessageId
-              ? { ...msg, content: fullContent }
-              : msg
-          )
-        );
+        if (typeof chunk === "string") {
+          fullContent += chunk;
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageId
+                ? { ...msg, content: fullContent }
+                : msg
+            )
+          );
+        } else if (
+          chunk &&
+          typeof chunk === "object" &&
+          chunk.type === "complete"
+        ) {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageId
+                ? { ...msg, raw_history: chunk.history }
+                : msg
+            )
+          );
+        }
       }
     } catch (error) {
       console.error("[excaligenius] Chat/Evaluation error:", error);
