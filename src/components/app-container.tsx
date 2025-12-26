@@ -89,8 +89,10 @@ export default function AppContainer({ apiKey, onLogout }: AppContainerProps) {
     useGeminiChat({
       projectDescription: projectSetup,
       apiKey,
-      getLatestDiagramData,
-      handleApplyModifications,
+      tools: {
+        getDiagramData: getLatestDiagramData,
+        applyModifications: handleApplyModifications,
+      },
     });
 
   if (projectSetup) {

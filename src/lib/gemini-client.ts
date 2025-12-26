@@ -17,21 +17,67 @@ export async function validateGeminiKey(apiKey: string) {
   return model.countTokens("Test");
 }
 
+type StreamGeminiResponseArgs = {
+  prompt: string;
+  projectDescription: string;
+  conversationHistory: Content[];
+  apiKey: string;
+  tools: {
+    getDiagramData: () => Promise<{
+      elements: Readonly<Ordered<NonDeletedExcalidrawElement>[]>;
+      appState: Readonly<Partial<AppState>>;
+    } | null>;
+    applyModifications: (modifications: {
+      elements: ExcalidrawElement[];
+      appState: AppState;
+    }) => Promise<void>;
+  };
+  isFollowUp?: boolean;
+};
+
+const getExcalidrawConfig = {
+  name: "get_excalidraw_data",
+  description:
+    "Retrieves the current Excalidraw diagram data elements and app state",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {},
+  },
+};
+
+const applyExcalidrawModificationsConfig = {
+  name: "apply_excalidraw_modifications",
+  description:
+    "Applies modifications to the Excalidraw diagram (elements and app state).",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      elements: {
+        type: SchemaType.ARRAY,
+        description: "List of Excalidraw elements to update or add.",
+        items: { type: SchemaType.OBJECT, properties: {} },
+      },
+      appState: {
+        type: SchemaType.OBJECT,
+        description: "App state properties to update",
+        properties: {},
+      },
+    },
+    required: ["elements"],
+  },
+};
+
 export async function* streamGeminiResponse(
-  prompt: string,
-  projectDescription: string,
-  conversationHistory: Content[],
-  apiKey: string,
-  getDiagramData: () => Promise<{
-    elements: Readonly<Ordered<NonDeletedExcalidrawElement>[]>;
-    appState: Readonly<Partial<AppState>>;
-  } | null>,
-  applyModifications: (modifications: {
-    elements: ExcalidrawElement[];
-    appState: AppState;
-  }) => Promise<void>,
-  isFollowUp = false
+  args: StreamGeminiResponseArgs
 ): AsyncGenerator<string, void, unknown> {
+  const {
+    prompt,
+    projectDescription,
+    conversationHistory,
+    apiKey,
+    tools: { getDiagramData, applyModifications },
+    isFollowUp = false,
+  } = args;
   const systemPrompt = `You are an expert AI diagram reviewer and architect. You help users design, review, and improve their diagrams and system architectures.
 
 Current Project:
@@ -54,38 +100,6 @@ When reviewing diagrams, provide:
 4. Best practices recommendations
 
 For regular responses, just provide text feedback.`;
-
-  const getExcalidrawConfig = {
-    name: "get_excalidraw_data",
-    description:
-      "Retrieves the current Excalidraw diagram data elements and app state",
-    parameters: {
-      type: SchemaType.OBJECT,
-      properties: {},
-    },
-  };
-
-  const applyExcalidrawModificationsConfig = {
-    name: "apply_excalidraw_modifications",
-    description:
-      "Applies modifications to the Excalidraw diagram (elements and app state).",
-    parameters: {
-      type: SchemaType.OBJECT,
-      properties: {
-        elements: {
-          type: SchemaType.ARRAY,
-          description: "List of Excalidraw elements to update or add.",
-          items: { type: SchemaType.OBJECT, properties: {} },
-        },
-        appState: {
-          type: SchemaType.OBJECT,
-          description: "App state properties to update",
-          properties: {},
-        },
-      },
-      required: ["elements"],
-    },
-  };
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);

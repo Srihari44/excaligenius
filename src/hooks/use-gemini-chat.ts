@@ -13,21 +13,22 @@ import type { Content } from "@google/generative-ai";
 interface UseGeminiChatProps {
   projectDescription: string;
   apiKey: string;
-  getLatestDiagramData: () => Promise<{
-    elements: readonly Ordered<NonDeletedExcalidrawElement>[];
-    appState: Partial<AppState>;
-  } | null>;
-  handleApplyModifications: (modifications: {
-    elements: ExcalidrawElement[];
-    appState: AppState;
-  }) => Promise<void>;
+  tools: {
+    getDiagramData: () => Promise<{
+      elements: readonly Ordered<NonDeletedExcalidrawElement>[];
+      appState: Partial<AppState>;
+    } | null>;
+    applyModifications: (modifications: {
+      elements: ExcalidrawElement[];
+      appState: AppState;
+    }) => Promise<void>;
+  };
 }
 
 export function useGeminiChat({
   projectDescription,
   apiKey,
-  getLatestDiagramData,
-  handleApplyModifications,
+  tools,
 }: UseGeminiChatProps) {
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const [loading, setLoading] = useState(false);
@@ -78,15 +79,14 @@ export function useGeminiChat({
       };
       setMessages((prev) => [...prev, placeholderMessage]);
 
-      const generator = streamGeminiResponse(
+      const generator = streamGeminiResponse({
         prompt,
         projectDescription,
-        getConversationHistory(),
+        conversationHistory: getConversationHistory(),
         apiKey,
-        getLatestDiagramData,
-        handleApplyModifications,
-        isFollowUp
-      );
+        tools,
+        isFollowUp,
+      });
 
       for await (const chunk of generator) {
         fullContent += chunk;
@@ -117,7 +117,7 @@ export function useGeminiChat({
   };
 
   const startEvaluation = async () => {
-    const diagramData = await getLatestDiagramData();
+    const diagramData = await tools.getDiagramData();
     if (!diagramData) {
       const errorMsg: ChatMessageType = {
         id: Date.now().toString(),
